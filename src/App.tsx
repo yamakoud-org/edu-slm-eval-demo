@@ -15,6 +15,7 @@ export default function App() {
 
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [progressPct, setProgressPct] = useState<number>(0);
+  const [progressBytes, setProgressBytes] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -33,9 +34,15 @@ export default function App() {
         if (typeof msg.progress === 'number') {
           setProgressPct(Math.min(100, Math.round(msg.progress)));
         }
+        if (typeof msg.loaded === 'number' && typeof msg.total === 'number' && msg.total > 0) {
+          const loadedMb = (msg.loaded / (1024 * 1024)).toFixed(0);
+          const totalMb = (msg.total / (1024 * 1024)).toFixed(0);
+          setProgressBytes(`${loadedMb} MB / ${totalMb} MB`);
+        }
       } else if (msg.type === 'ready') {
         setLoadState('ready');
         setProgressPct(100);
+        setProgressBytes('');
       } else if (msg.type === 'token') {
         const chunk = String(msg.chunk ?? '');
         setMessages((prev) => {
@@ -121,7 +128,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto h-full flex flex-col">
           {loadState === 'loading' ? (
-            <div className="flex-1 flex flex-col items-center justify-center gap-4">
+            <div className="flex-1 flex flex-col items-center justify-center gap-4 px-4 text-center">
               <Loader2 className="w-7 h-7 animate-spin text-emerald-400" />
               <div className="w-64 h-1.5 rounded-full bg-slate-800 overflow-hidden">
                 <div
@@ -129,7 +136,13 @@ export default function App() {
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
-              <div className="text-xs font-mono text-slate-400">{progressPct}%</div>
+              <div className="text-xs font-mono text-slate-300">
+                {progressPct}%{progressBytes ? ` (${progressBytes})` : ''}
+              </div>
+              <div className="max-w-sm text-xs text-slate-400 leading-relaxed space-y-1">
+                <p>初回はモデルデータ（約 900 MB）をブラウザ内へダウンロード・展開するため、数十秒〜数分ほど時間がかかります。</p>
+                <p>Wi-Fi 環境および十分な空きメモリ（4 GB 以上目安）でのご利用を推奨します。2回目以降はキャッシュから高速に起動します。</p>
+              </div>
             </div>
           ) : loadState === 'error' ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center">
