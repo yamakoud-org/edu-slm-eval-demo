@@ -1,0 +1,68 @@
+name: Deploy Edu-SLM Eval Demo to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies (skip native CUDA ORT)
+        run: npm ci --onnxruntime-node-install-cuda=skip
+
+      - name: Build Vite SPA
+        run: npm run build
+
+      - name: Fetch 4-bit ONNX weight-edited model from GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist/models/edu-slm-q4/onnx
+          if gh release view v1.0-onnx-q4 --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release download v1.0-onnx-q4 --repo "${{ github.repository }}" --dir /tmp/onnx_release
+            mv /tmp/onnx_release/model_q4f16.onnx dist/models/edu-slm-q4/onnx/model_q4f16.onnx
+            mv /tmp/onnx_release/*.json /tmp/onnx_release/*.txt dist/models/edu-slm-q4/ 2>/dev/null || true
+            ls -lh dist/models/edu-slm-q4/ dist/models/edu-slm-q4/onnx/
+            du -sh dist/
+          else
+            echo "::warning::Release v1.0-onnx-q4 not found yet; deploying SPA without local ONNX bundle."
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

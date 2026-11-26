@@ -1,0 +1,12 @@
+node_modules/
+dist/
+artifacts/
+.onnx_deps/
+.venv/
+__pycache__/
+*.pyc
+*.pt
+*.safetensors
+*.onnx
+*.onnx_data
+.DS_Store

@@ -1,0 +1,23 @@
+{
+  "version": "v2",
+  "description": "Cycle 2 re-surgery: de-confounded polite-register probing vectors (14-token opening window), focused behavioral core L11-L18 (leaving L19-L27 syntax/math layers intact), stronger sycophancy abliteration, and closed-loop contrastive Rank-1 baking (gamma=0.55) to prevent repetition collapse.",
+  "layers": [11, 12, 13, 14, 15, 16, 17, 18],
+  "o_proj_abliterate_beta": {
+    "11": 0.25, "12": 0.40, "13": 0.50, "14": 0.55, "15": 0.55, "16": 0.50, "17": 0.40, "18": 0.25
+  },
+  "down_proj_abliterate_beta": {
+    "11": 0.45, "12": 0.65, "13": 0.80, "14": 0.90, "15": 0.90, "16": 0.80, "17": 0.65, "18": 0.45
+  },
+  "down_proj_bake_alpha": {
+    "11": 0.07, "12": 0.11, "13": 0.14, "14": 0.16, "15": 0.16, "16": 0.14, "17": 0.11, "18": 0.07
+  },
+  "o_proj_bake_alpha": {
+    "11": 0.02, "12": 0.03, "13": 0.04, "14": 0.05, "15": 0.05, "16": 0.04, "17": 0.03, "18": 0.02
+  },
+  "bake_key_mode": "contrastive",
+  "contrastive_gamma": 0.55,
+  "scale_alpha_by_delta_norm": true,
+  "orthogonalize_bake_against_syc": false,
+  "preserve_row_norm": false,
+  "max_rel_frobenius_delta": 0.10
+}

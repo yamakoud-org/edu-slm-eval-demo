@@ -1,0 +1,22 @@
+{
+  "version": "v1",
+  "description": "Cycle 1 initial surgery: tapered abliteration + Rank-1 weight baking across core behavioral peak L12-L20 (based on Cohen's d and adversarial_override peaks).",
+  "layers": [12, 13, 14, 15, 16, 17, 18, 19, 20],
+  "o_proj_abliterate_beta": {
+    "12": 0.25, "13": 0.35, "14": 0.45, "15": 0.55, "16": 0.60, "17": 0.55, "18": 0.45, "19": 0.35, "20": 0.20
+  },
+  "down_proj_abliterate_beta": {
+    "12": 0.35, "13": 0.50, "14": 0.65, "15": 0.75, "16": 0.80, "17": 0.75, "18": 0.60, "19": 0.45, "20": 0.30
+  },
+  "down_proj_bake_alpha": {
+    "12": 0.10, "13": 0.15, "14": 0.20, "15": 0.25, "16": 0.25, "17": 0.25, "18": 0.20, "19": 0.15, "20": 0.10
+  },
+  "o_proj_bake_alpha": {
+    "12": 0.04, "13": 0.06, "14": 0.08, "15": 0.10, "16": 0.10, "17": 0.10, "18": 0.08, "19": 0.06, "20": 0.04
+  },
+  "bake_key_mode": "mu_z_all",
+  "scale_alpha_by_delta_norm": true,
+  "orthogonalize_bake_against_syc": false,
+  "preserve_row_norm": false,
+  "max_rel_frobenius_delta": 0.10
+}
