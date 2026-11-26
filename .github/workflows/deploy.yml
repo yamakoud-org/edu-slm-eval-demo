@@ -37,12 +37,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p dist/models/edu-slm-q4/onnx
+          mkdir -p dist/models/edu-slm-q4-b32/onnx
           if gh release view v1.0-onnx-q4 --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release download v1.0-onnx-q4 --repo "${{ github.repository }}" --dir /tmp/onnx_release
-            mv /tmp/onnx_release/model_q4f16.onnx dist/models/edu-slm-q4/onnx/model_q4f16.onnx
-            mv /tmp/onnx_release/*.json /tmp/onnx_release/*.txt dist/models/edu-slm-q4/ 2>/dev/null || true
-            ls -lh dist/models/edu-slm-q4/ dist/models/edu-slm-q4/onnx/
+            mv /tmp/onnx_release/model_q4.onnx dist/models/edu-slm-q4-b32/onnx/model_q4.onnx
+            mv /tmp/onnx_release/*.json /tmp/onnx_release/*.txt dist/models/edu-slm-q4-b32/ 2>/dev/null || true
+            ls -lh dist/models/edu-slm-q4-b32/ dist/models/edu-slm-q4-b32/onnx/
             du -sh dist/
           else
             echo "::warning::Release v1.0-onnx-q4 not found yet; deploying SPA without local ONNX bundle."

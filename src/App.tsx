@@ -9,8 +9,8 @@ interface ChatMsg {
 const SYSTEM_PROMPT =
   'あなたは生徒の思考を引き出す教育チューターです。答えや完成文を直接教えず、温かく寄り添いながら小さな問いかけで生徒自身の気づきを促してください。';
 
-// Total expected bytes across tokenizer + config + 4-bit ONNX model (~945 MB)
-const EXPECTED_TOTAL_BYTES = 945_000_000;
+// Total expected bytes across tokenizer + config + 4-bit ONNX model (block_size=32, ~1.09 GB)
+const EXPECTED_TOTAL_BYTES = 1_090_000_000;
 
 export default function App() {
   const workerRef = useRef<Worker | null>(null);
@@ -173,7 +173,7 @@ export default function App() {
                   : `${progressPct}%${progressBytes ? ` (${progressBytes})` : ''}`}
               </div>
               <div className="max-w-sm text-xs text-slate-400 leading-relaxed space-y-1">
-                <p>初回はモデルデータ（約 900 MB）をブラウザ内へダウンロード・展開するため、数十秒〜数分ほど時間がかかります。</p>
+                <p>初回はモデルデータ（約 1.0 GB）をブラウザ内へダウンロード・展開するため、数十秒〜数分ほど時間がかかります。</p>
                 <p>Wi-Fi 環境および十分な空きメモリ（4 GB 以上目安）でのご利用を推奨します。2回目以降はキャッシュから高速に起動します。</p>
               </div>
             </div>
@@ -197,7 +197,7 @@ export default function App() {
                   className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                    className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words ${
                       m.role === 'user'
                         ? 'rounded-tr-sm bg-emerald-600/25 border border-emerald-500/40 text-slate-100'
                         : 'rounded-tl-sm bg-slate-900 border border-slate-800 text-slate-100'

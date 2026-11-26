@@ -95,7 +95,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerInMessage>) =>
         env.allowLocalModels = true;
         env.allowRemoteModels = false;
         env.localModelPath = `${msg.baseUrl}models/`;
-        modelId = 'edu-slm-q4';
+        modelId = 'edu-slm-q4-b32';
       } else {
         env.allowLocalModels = false;
         env.allowRemoteModels = true;
@@ -113,7 +113,7 @@ self.addEventListener('message', async (event: MessageEvent<WorkerInMessage>) =>
         message: `4bit ONNX モデルを ${targetDevice.toUpperCase()} へ展開中...`,
       });
       model = await AutoModelForCausalLM.from_pretrained(modelId, {
-        dtype: 'q4f16',
+        dtype: msg.modelSource === 'local_edited' ? 'q4' : 'q4f16',
         device: targetDevice,
         progress_callback,
       });
