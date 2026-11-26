@@ -9,13 +9,18 @@ interface ChatMsg {
 const SYSTEM_PROMPT =
   'あなたは生徒の思考を引き出す教育チューターです。答えや完成文を直接教えず、温かく寄り添いながら小さな問いかけで生徒自身の気づきを促してください。';
 
+// Total expected bytes across tokenizer + config + 4-bit ONNX model (~945 MB)
+const EXPECTED_TOTAL_BYTES = 945_000_000;
+
 export default function App() {
   const workerRef = useRef<Worker | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const fileBytesRef = useRef<Record<string, { loaded: number; total: number }>>({});
 
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [progressPct, setProgressPct] = useState<number>(0);
   const [progressBytes, setProgressBytes] = useState<string>('');
+  const [isInitializing, setIsInitializing] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<ChatMsg[]>([]);
@@ -23,6 +28,7 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
 
   useEffect(() => {
+    fileBytesRef.current = {};
     const worker = new Worker(new URL('./workers/slm.worker.ts', import.meta.url), {
       type: 'module',
     });
@@ -31,18 +37,43 @@ export default function App() {
     worker.onmessage = (e: MessageEvent<Record<string, unknown>>) => {
       const msg = e.data;
       if (msg.type === 'progress') {
-        if (typeof msg.progress === 'number') {
-          setProgressPct(Math.min(100, Math.round(msg.progress)));
+        const file = String(msg.file ?? '');
+        const status = String(msg.status ?? '');
+        const loaded = typeof msg.loaded === 'number' ? msg.loaded : undefined;
+        const total = typeof msg.total === 'number' ? msg.total : undefined;
+
+        if (file && loaded !== undefined && total !== undefined && total > 0) {
+          const prev = fileBytesRef.current[file];
+          fileBytesRef.current[file] = {
+            loaded: Math.max(prev?.loaded ?? 0, loaded),
+            total: Math.max(prev?.total ?? 0, total),
+          };
+        } else if (file && status === 'done' && fileBytesRef.current[file]) {
+          fileBytesRef.current[file].loaded = fileBytesRef.current[file].total;
         }
-        if (typeof msg.loaded === 'number' && typeof msg.total === 'number' && msg.total > 0) {
-          const loadedMb = (msg.loaded / (1024 * 1024)).toFixed(0);
-          const totalMb = (msg.total / (1024 * 1024)).toFixed(0);
+
+        const entries = Object.values(fileBytesRef.current);
+        const sumLoaded = entries.reduce((acc, cur) => acc + cur.loaded, 0);
+        const sumTotal = Math.max(
+          EXPECTED_TOTAL_BYTES,
+          entries.reduce((acc, cur) => acc + cur.total, 0),
+        );
+
+        if (sumLoaded > 0) {
+          const pct = Math.min(99, Math.floor((sumLoaded / sumTotal) * 100));
+          setProgressPct((prev) => Math.max(prev, pct));
+          const loadedMb = (sumLoaded / (1024 * 1024)).toFixed(0);
+          const totalMb = (sumTotal / (1024 * 1024)).toFixed(0);
           setProgressBytes(`${loadedMb} MB / ${totalMb} MB`);
+          if (file.endsWith('.onnx') && (status === 'done' || (loaded !== undefined && total !== undefined && loaded >= total))) {
+            setIsInitializing(true);
+          }
         }
       } else if (msg.type === 'ready') {
         setLoadState('ready');
         setProgressPct(100);
         setProgressBytes('');
+        setIsInitializing(false);
       } else if (msg.type === 'token') {
         const chunk = String(msg.chunk ?? '');
         setMessages((prev) => {
@@ -137,7 +168,9 @@ export default function App() {
                 />
               </div>
               <div className="text-xs font-mono text-slate-300">
-                {progressPct}%{progressBytes ? ` (${progressBytes})` : ''}
+                {isInitializing
+                  ? 'モデルを展開中...'
+                  : `${progressPct}%${progressBytes ? ` (${progressBytes})` : ''}`}
               </div>
               <div className="max-w-sm text-xs text-slate-400 leading-relaxed space-y-1">
                 <p>初回はモデルデータ（約 900 MB）をブラウザ内へダウンロード・展開するため、数十秒〜数分ほど時間がかかります。</p>
