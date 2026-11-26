@@ -5,10 +5,10 @@ import { SurgeryTab } from './components/SurgeryTab';
 import { LiveLabTab } from './components/LiveLabTab';
 import type { EvalResultsData, SurgeryReportData } from './types';
 
-type TabId = 'benchmark' | 'surgery' | 'livelab';
+type TabId = 'livelab' | 'benchmark' | 'surgery';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabId>('benchmark');
+  const [activeTab, setActiveTab] = useState<TabId>('livelab');
   const [evalData, setEvalData] = useState<EvalResultsData | null>(null);
   const [surgeryData, setSurgeryData] = useState<SurgeryReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,24 +34,26 @@ export default function App() {
       });
   }, []);
 
-  const tabs: { id: TabId; label: string; sub: string; icon: React.ReactNode }[] = [
+  const tabs: { id: TabId; label: string; sub: string; dev?: boolean; icon: React.ReactNode }[] = [
+    {
+      id: 'livelab',
+      label: 'Edu-SLM v3 と対話する',
+      sub: 'ブラウザ内 WebGPU 4-bit ライブ推論（トップ）',
+      icon: <FlaskConical className="w-4 h-4" />,
+    },
     {
       id: 'benchmark',
-      label: 'Tab 1: 定量ベンチマーク',
+      label: '定量ベンチマーク',
       sub: '3者比較・LearnLM 5原則・脱獄耐性',
+      dev: true,
       icon: <BarChart3 className="w-4 h-4" />,
     },
     {
       id: 'surgery',
-      label: 'Tab 2: 重み手術ログ＆定性検証',
+      label: '重み手術ログ＆定性検証',
       sub: '28層Probing・3サイクル再手術・4ペルソナ',
+      dev: true,
       icon: <Brain className="w-4 h-4" />,
-    },
-    {
-      id: 'livelab',
-      label: 'Tab 3: ブラウザ内 SLM 実験室',
-      sub: 'Transformers.js / WebGPU 4-bit ライブ推論',
-      icon: <FlaskConical className="w-4 h-4" />,
     },
   ];
 
@@ -105,8 +107,15 @@ export default function App() {
                   }`}
                 >
                   <div className={active ? 'text-emerald-400' : 'text-slate-500'}>{t.icon}</div>
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold truncate">{t.label}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-bold truncate">{t.label}</span>
+                      {t.dev && (
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono uppercase bg-slate-800 text-slate-400 border border-slate-700">
+                          Dev
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[11px] opacity-75 truncate">{t.sub}</div>
                   </div>
                 </button>
@@ -118,7 +127,9 @@ export default function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {error ? (
+        {activeTab === 'livelab' ? (
+          <LiveLabTab />
+        ) : error ? (
           <div className="rounded-2xl border border-rose-700/60 bg-rose-950/50 p-6 text-sm text-rose-200">
             データの読み込みに失敗しました: {error}
           </div>
@@ -131,7 +142,6 @@ export default function App() {
           <>
             {activeTab === 'benchmark' && <BenchmarkTab data={evalData} />}
             {activeTab === 'surgery' && <SurgeryTab data={surgeryData} />}
-            {activeTab === 'livelab' && <LiveLabTab />}
           </>
         )}
       </main>
