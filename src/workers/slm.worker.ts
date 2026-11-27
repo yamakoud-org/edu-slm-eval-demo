@@ -91,15 +91,29 @@ self.addEventListener('message', async (event: MessageEvent<WorkerInMessage>) =>
         | { wasm?: { numThreads?: number; simd?: boolean; proxy?: boolean } }
         | undefined;
       const numThreads = self.crossOriginIsolated
-        ? Math.min(Math.max(self.navigator.hardwareConcurrency || 4, 2), 8)
+        ? Math.min(Math.max(self.navigator.hardwareConcurrency || 4, 2), 4)
         : 1;
       if (onnxEnv?.wasm) {
         onnxEnv.wasm.simd = true;
         onnxEnv.wasm.numThreads = numThreads;
       }
 
+      const selectedDtype =
+        msg.modelSource === 'local_edited'
+          ? targetDevice === 'webgpu'
+            ? 'q4'
+            : 'q8'
+          : 'q4f16';
+
+      self.postMessage({
+        type: 'meta',
+        device: targetDevice,
+        dtype: selectedDtype,
+        expectedBytes: selectedDtype === 'q8' ? 1_670_000_000 : 1_090_000_000,
+      });
+
       console.info(
-        `[Edu-SLM] device=${targetDevice} gpu=${gpuInfo.label} crossOriginIsolated=${Boolean(self.crossOriginIsolated)} wasmThreads=${numThreads}`,
+        `[Edu-SLM] device=${targetDevice} dtype=${selectedDtype} gpu=${gpuInfo.label} crossOriginIsolated=${Boolean(self.crossOriginIsolated)} wasmThreads=${numThreads}`,
       );
 
       if (model && tokenizer && loadedSource === msg.modelSource && loadedDevice === targetDevice) {
@@ -149,10 +163,10 @@ self.addEventListener('message', async (event: MessageEvent<WorkerInMessage>) =>
 
       self.postMessage({
         type: 'status',
-        message: `4bit ONNX モデルを ${targetDevice.toUpperCase()} へ展開中...`,
+        message: `ONNX モデル (${selectedDtype}) を ${targetDevice.toUpperCase()} へ展開中...`,
       });
       model = await AutoModelForCausalLM.from_pretrained(modelId, {
-        dtype: msg.modelSource === 'local_edited' ? 'q4' : 'q4f16',
+        dtype: selectedDtype,
         device: targetDevice,
         progress_callback,
       });

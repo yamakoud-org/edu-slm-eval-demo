@@ -16,6 +16,7 @@ export default function App() {
   const workerRef = useRef<Worker | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileBytesRef = useRef<Record<string, { loaded: number; total: number }>>({});
+  const expectedTotalRef = useRef<number>(EXPECTED_TOTAL_BYTES);
 
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [progressPct, setProgressPct] = useState<number>(0);
@@ -36,7 +37,11 @@ export default function App() {
 
     worker.onmessage = (e: MessageEvent<Record<string, unknown>>) => {
       const msg = e.data;
-      if (msg.type === 'progress') {
+      if (msg.type === 'meta') {
+        if (typeof msg.expectedBytes === 'number' && msg.expectedBytes > 0) {
+          expectedTotalRef.current = msg.expectedBytes;
+        }
+      } else if (msg.type === 'progress') {
         const file = String(msg.file ?? '');
         const status = String(msg.status ?? '');
         const loaded = typeof msg.loaded === 'number' ? msg.loaded : undefined;
@@ -55,7 +60,7 @@ export default function App() {
         const entries = Object.values(fileBytesRef.current);
         const sumLoaded = entries.reduce((acc, cur) => acc + cur.loaded, 0);
         const sumTotal = Math.max(
-          EXPECTED_TOTAL_BYTES,
+          expectedTotalRef.current,
           entries.reduce((acc, cur) => acc + cur.total, 0),
         );
 
@@ -65,7 +70,7 @@ export default function App() {
           const loadedMb = (sumLoaded / (1024 * 1024)).toFixed(0);
           const totalMb = (sumTotal / (1024 * 1024)).toFixed(0);
           setProgressBytes(`${loadedMb} MB / ${totalMb} MB`);
-          if (file.endsWith('.onnx') && (status === 'done' || (loaded !== undefined && total !== undefined && loaded >= total))) {
+          if (file.endsWith('.onnx') && status === 'done') {
             setIsInitializing(true);
           }
         }
@@ -96,16 +101,19 @@ export default function App() {
     };
 
     const startLoad = async () => {
+      const forceWasm = new URLSearchParams(window.location.search).get('force') === 'wasm';
       let preferWebGPU = false;
-      try {
-        const nav = navigator as Navigator & {
-          gpu?: { requestAdapter: (opts?: { powerPreference?: string }) => Promise<unknown | null> };
-        };
-        if (nav.gpu) {
-          preferWebGPU = Boolean(await nav.gpu.requestAdapter({ powerPreference: 'high-performance' }));
+      if (!forceWasm) {
+        try {
+          const nav = navigator as Navigator & {
+            gpu?: { requestAdapter: (opts?: { powerPreference?: string }) => Promise<unknown | null> };
+          };
+          if (nav.gpu) {
+            preferWebGPU = Boolean(await nav.gpu.requestAdapter({ powerPreference: 'high-performance' }));
+          }
+        } catch {
+          preferWebGPU = false;
         }
-      } catch {
-        preferWebGPU = false;
       }
 
       const baseUrl = new URL(import.meta.env.BASE_URL, window.location.origin).href;

@@ -7,6 +7,8 @@ if (typeof window === 'undefined') {
   self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.cache === 'only-if-cached' && req.mode !== 'same-origin') return;
+    // Bypass Service Worker IPC streaming for large same-origin ONNX model binaries
+    if (req.url.includes('.onnx') && new URL(req.url).origin === self.location.origin) return;
 
     event.respondWith(
       fetch(req)

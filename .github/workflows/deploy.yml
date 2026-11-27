@@ -40,7 +40,7 @@ jobs:
           mkdir -p dist/models/edu-slm-q4-b32/onnx
           if gh release view v1.0-onnx-q4 --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release download v1.0-onnx-q4 --repo "${{ github.repository }}" --dir /tmp/onnx_release
-            mv /tmp/onnx_release/model_q4.onnx dist/models/edu-slm-q4-b32/onnx/model_q4.onnx
+            mv /tmp/onnx_release/model_q4.onnx /tmp/onnx_release/model_quantized.onnx dist/models/edu-slm-q4-b32/onnx/ 2>/dev/null || mv /tmp/onnx_release/model_*.onnx dist/models/edu-slm-q4-b32/onnx/
             mv /tmp/onnx_release/*.json /tmp/onnx_release/*.txt dist/models/edu-slm-q4-b32/ 2>/dev/null || true
             ls -lh dist/models/edu-slm-q4-b32/ dist/models/edu-slm-q4-b32/onnx/
             du -sh dist/
