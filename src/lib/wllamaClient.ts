@@ -27,6 +27,74 @@ export interface GenerateResult {
   tps: number;
 }
 
+interface MemoryMeasurement {
+  bytes: number;
+  breakdown?: Array<{
+    bytes: number;
+    types?: string[];
+  }>;
+}
+
+interface ExtendedPerformance extends Performance {
+  measureUserAgentSpecificMemory?: () => Promise<MemoryMeasurement>;
+  memory?: {
+    usedJSHeapSize: number;
+    totalJSHeapSize: number;
+    jsHeapSizeLimit: number;
+  };
+}
+
+interface ResourceSample {
+  ramMB: number | null;
+  ramKind: 'ram' | 'jsHeap' | 'unavailable';
+  cacheMB: number | null;
+}
+
+const BYTES_PER_MIB = 1024 * 1024;
+
+/** Sample actual browser tab RAM (including WASM/Worker when crossOriginIsolated) and disk cache. */
+const sampleResourceUsage = async (): Promise<ResourceSample> => {
+  const perf = performance as ExtendedPerformance;
+
+  const ramPromise = (async (): Promise<{ mb: number | null; kind: ResourceSample['ramKind'] }> => {
+    if (window.crossOriginIsolated && typeof perf.measureUserAgentSpecificMemory === 'function') {
+      try {
+        const result = await perf.measureUserAgentSpecificMemory();
+        if (Number.isFinite(result.bytes) && result.bytes > 0) {
+          return { mb: result.bytes / BYTES_PER_MIB, kind: 'ram' };
+        }
+      } catch {
+        // Fall through to JS heap fallback below.
+      }
+    }
+    if (perf.memory && Number.isFinite(perf.memory.usedJSHeapSize)) {
+      return { mb: perf.memory.usedJSHeapSize / BYTES_PER_MIB, kind: 'jsHeap' };
+    }
+    return { mb: null, kind: 'unavailable' };
+  })();
+
+  const cachePromise = (async (): Promise<number | null> => {
+    if (!navigator.storage || typeof navigator.storage.estimate !== 'function') return null;
+    try {
+      const est = await navigator.storage.estimate();
+      if (typeof est.usage === 'number' && Number.isFinite(est.usage)) {
+        return est.usage / BYTES_PER_MIB;
+      }
+    } catch {
+      // Ignore storage estimate failures in restricted contexts.
+    }
+    return null;
+  })();
+
+  const [ram, cacheMB] = await Promise.all([ramPromise, cachePromise]);
+  return { ramMB: ram.mb, ramKind: ram.kind, cacheMB };
+};
+
+const formatDeltaMB = (delta: number): string => {
+  const sign = delta >= 0 ? '+' : '';
+  return `${sign}${delta.toFixed(1)}MB`;
+};
+
 /** Fallback total sizes when the server omits Content-Length. */
 const FALLBACK_TOTAL_BYTES: Record<ModelVariant, number> = {
   'qwen3_1.7b': 1_054_500_000,
@@ -76,6 +144,40 @@ class WllamaClient {
   private threads = 1;
   private loadPromise: Promise<void> | null = null;
   private abortController: AbortController | null = null;
+  private lastRamMB: number | null = null;
+  private resourceSampleSeq = 0;
+
+  private async logResources(phase: 'post-load' | 'turn'): Promise<void> {
+    const seq = ++this.resourceSampleSeq;
+    const sample = await sampleResourceUsage();
+    if (seq !== this.resourceSampleSeq) return;
+
+    const parts: string[] = [`[Edu-SLM] resources(${phase})`];
+    if (sample.ramMB !== null) {
+      const label = sample.ramKind === 'ram' ? 'ram' : 'jsHeap';
+      const deltaStr =
+        this.lastRamMB !== null && sample.ramKind === 'ram'
+          ? ` (delta=${formatDeltaMB(sample.ramMB - this.lastRamMB)})`
+          : '';
+      parts.push(`${label}=${sample.ramMB.toFixed(1)}MB${deltaStr}`);
+      if (sample.ramKind === 'ram') {
+        this.lastRamMB = sample.ramMB;
+      }
+    } else {
+      parts.push('ram=unavailable');
+    }
+
+    if (sample.cacheMB !== null) {
+      parts.push(`cache=${sample.cacheMB.toFixed(1)}MB`);
+    }
+
+    const totalCores = navigator.hardwareConcurrency || this.threads;
+    parts.push(`threads=${this.threads}/${totalCores}`);
+
+    const line = parts.join(' ');
+    document.documentElement.dataset.eduResources = line;
+    console.info(line);
+  }
 
   get isLoaded(): boolean {
     return this.wllama !== null;
@@ -139,9 +241,11 @@ class WllamaClient {
     onProgress({ loaded: 1, total: 1, pct: 100 });
 
     const loadSec = ((performance.now() - start) / 1000).toFixed(2);
-    const loadInfo = `[Edu-SLM] engine=wllama model=${filename} threads=${threads} crossOriginIsolated=${window.crossOriginIsolated} loadSec=${loadSec}`;
+    const totalCores = navigator.hardwareConcurrency || threads;
+    const loadInfo = `[Edu-SLM] engine=wllama model=${filename} threads=${threads}/${totalCores} crossOriginIsolated=${window.crossOriginIsolated} loadSec=${loadSec}`;
     document.documentElement.dataset.eduLoad = loadInfo;
     console.info(loadInfo);
+    void this.logResources('post-load');
   }
 
   /** Stream a chat reply. `onToken` receives incremental text deltas. */
@@ -160,7 +264,11 @@ class WllamaClient {
     let content = '';
     let emittedLen = 0;
     let tokens = 0;
+    let cacheN = 0;
+    let promptN = 0;
+    let promptMs = 0;
     let predictedN = 0;
+    let predictedMs = 0;
     let predictedPerSecond = 0;
     let promptPerSecond = 0;
 
@@ -207,7 +315,11 @@ class WllamaClient {
           }
         }
         if (chunk.timings) {
+          cacheN = chunk.timings.cache_n || cacheN;
+          promptN = chunk.timings.prompt_n || promptN;
+          promptMs = chunk.timings.prompt_ms || promptMs;
           predictedN = chunk.timings.predicted_n || predictedN;
+          predictedMs = chunk.timings.predicted_ms || predictedMs;
           predictedPerSecond = chunk.timings.predicted_per_second || predictedPerSecond;
           promptPerSecond = chunk.timings.prompt_per_second || promptPerSecond;
         }
@@ -236,10 +348,17 @@ class WllamaClient {
         : elapsedSec > 0
           ? finalTokens / elapsedSec
           : 0;
+    const computeSec = promptMs + predictedMs > 0 ? (promptMs + predictedMs) / 1000 : elapsedSec;
+    const cpuThreadSec = computeSec * this.threads;
+    const totalCores = navigator.hardwareConcurrency || this.threads;
 
-    const genInfo = `[Edu-SLM] generated tokens=${finalTokens} elapsed=${elapsedSec.toFixed(2)}s tps=${tps.toFixed(2)} promptTps=${promptPerSecond.toFixed(2)} engine=wllama threads=${this.threads}`;
+    const genInfo =
+      `[Edu-SLM] generated tokens=${finalTokens} elapsed=${elapsedSec.toFixed(2)}s tps=${tps.toFixed(2)} promptTps=${promptPerSecond.toFixed(2)} ` +
+      `prompt=${promptN}tok(kvCache=${cacheN})/${(promptMs / 1000).toFixed(2)}s decode=${(predictedMs / 1000).toFixed(2)}s ` +
+      `threads=${this.threads}/${totalCores} cpuThreadSec=${cpuThreadSec.toFixed(1)}s engine=wllama`;
     document.documentElement.dataset.eduGen = genInfo;
     console.info(genInfo);
+    void this.logResources('turn');
 
     return { content, tokens: finalTokens, elapsedSec, tps };
   }
