@@ -38,9 +38,12 @@ if (typeof window === 'undefined') {
   });
 } else {
   (() => {
-    if (window.crossOriginIsolated) return;
-    if (!('serviceWorker' in navigator)) return;
     const reloadedKey = 'coi_sw_reloaded_v1';
+    if (window.crossOriginIsolated) {
+      sessionStorage.removeItem(reloadedKey);
+      return;
+    }
+    if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker
       .register(new URL('./coi-serviceworker.js', window.location.href).href)
       .then((reg) => {
