@@ -107,7 +107,7 @@ export default function App() {
                 {progressPct}%{progressBytes ? ` (${progressBytes})` : ''}
               </div>
               <p className="max-w-sm text-xs text-slate-400 leading-relaxed">
-                軽量モデル（約380MB）を初回のみダウンロードします。2回目以降はブラウザのキャッシュから高速に起動します。
+                初回のみモデルデータ（約1.0GB）をダウンロードします。Wi-Fi環境での読み込みを推奨します。2回目以降はブラウザのキャッシュから高速に起動します。
               </p>
             </div>
           ) : loadState === 'error' ? (

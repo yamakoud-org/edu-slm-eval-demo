@@ -37,16 +37,22 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p dist/models/edu-slm-0.5b-gguf
+          mkdir -p dist/models/edu-slm-qwen3-gguf dist/models/edu-slm-0.5b-gguf
+          if gh release view v3.0-gguf-qwen3-1.7b --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release download v3.0-gguf-qwen3-1.7b --repo "${{ github.repository }}" \
+              --pattern "*.gguf" \
+              --dir dist/models/edu-slm-qwen3-gguf
+            ls -lh dist/models/edu-slm-qwen3-gguf/
+          else
+            echo "::warning::Release v3.0-gguf-qwen3-1.7b not found yet."
+          fi
           if gh release view v2.0-gguf-0.5b --repo "${{ github.repository }}" >/dev/null 2>&1; then
             gh release download v2.0-gguf-0.5b --repo "${{ github.repository }}" \
-              --pattern "*.gguf" \
+              --pattern "edu-slm-0.5b-q4_k_m.gguf" \
               --dir dist/models/edu-slm-0.5b-gguf
             ls -lh dist/models/edu-slm-0.5b-gguf/
-            du -sh dist/
-          else
-            echo "::warning::Release v2.0-gguf-0.5b not found yet; deploying SPA without local GGUF bundle."
           fi
+          du -sh dist/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
