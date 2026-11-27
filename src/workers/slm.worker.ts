@@ -36,16 +36,40 @@ let loadedSource: ModelSource | null = null;
 let loadedDevice: 'webgpu' | 'wasm' = 'wasm';
 const stoppingCriteria = new InterruptableStoppingCriteria();
 
-async function detectWebGPU(): Promise<boolean> {
+interface GPUAdapterLike {
+  isFallbackAdapter?: boolean;
+  info?: { vendor?: string; architecture?: string; description?: string };
+}
+
+async function detectHardwareWebGPU(): Promise<{ ok: boolean; label: string }> {
   try {
     const nav = self.navigator as Navigator & {
-      gpu?: { requestAdapter: () => Promise<unknown | null> };
+      gpu?: {
+        requestAdapter: (opts?: { powerPreference?: string }) => Promise<GPUAdapterLike | null>;
+      };
     };
-    if (!nav.gpu) return false;
-    const adapter = await nav.gpu.requestAdapter();
-    return Boolean(adapter);
-  } catch {
-    return false;
+    if (!nav.gpu) return { ok: false, label: 'no-navigator-gpu' };
+    const adapter = await nav.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) return { ok: false, label: 'no-adapter' };
+
+    const desc = [
+      adapter.info?.vendor ?? '',
+      adapter.info?.architecture ?? '',
+      adapter.info?.description ?? '',
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    const isSoftware =
+      Boolean(adapter.isFallbackAdapter) ||
+      /swiftshader|llvmpipe|softpipe|lavapipe|microsoft basic render|cpu/.test(desc);
+
+    if (isSoftware) {
+      return { ok: false, label: `software-adapter-rejected(${desc.trim() || 'fallback'})` };
+    }
+    return { ok: true, label: desc.trim() || 'hardware-webgpu' };
+  } catch (e) {
+    return { ok: false, label: `error(${String(e)})` };
   }
 }
 
@@ -59,9 +83,24 @@ self.addEventListener('message', async (event: MessageEvent<WorkerInMessage>) =>
 
   if (msg.type === 'load') {
     try {
-      const hasWebGPU = await detectWebGPU();
+      const gpuInfo = await detectHardwareWebGPU();
       const targetDevice: 'webgpu' | 'wasm' =
-        msg.preferredDevice === 'webgpu' && hasWebGPU ? 'webgpu' : 'wasm';
+        msg.preferredDevice === 'webgpu' && gpuInfo.ok ? 'webgpu' : 'wasm';
+
+      const onnxEnv = env.backends?.onnx as
+        | { wasm?: { numThreads?: number; simd?: boolean; proxy?: boolean } }
+        | undefined;
+      const numThreads = self.crossOriginIsolated
+        ? Math.min(Math.max(self.navigator.hardwareConcurrency || 4, 2), 8)
+        : 1;
+      if (onnxEnv?.wasm) {
+        onnxEnv.wasm.simd = true;
+        onnxEnv.wasm.numThreads = numThreads;
+      }
+
+      console.info(
+        `[Edu-SLM] device=${targetDevice} gpu=${gpuInfo.label} crossOriginIsolated=${Boolean(self.crossOriginIsolated)} wasmThreads=${numThreads}`,
+      );
 
       if (model && tokenizer && loadedSource === msg.modelSource && loadedDevice === targetDevice) {
         self.postMessage({ type: 'ready', device: targetDevice, modelSource: msg.modelSource });
@@ -173,10 +212,14 @@ self.addEventListener('message', async (event: MessageEvent<WorkerInMessage>) =>
       await model.generate(genParams);
 
       const elapsedSec = (performance.now() - startTime) / 1000;
+      const tps = elapsedSec > 0 ? tokenCount / elapsedSec : 0;
+      console.info(
+        `[Edu-SLM] generated tokens=${tokenCount} elapsed=${elapsedSec.toFixed(2)}s tps=${tps.toFixed(2)} device=${loadedDevice}`,
+      );
       self.postMessage({
         type: 'done',
         tokens: tokenCount,
-        tps: elapsedSec > 0 ? tokenCount / elapsedSec : 0,
+        tps,
         elapsedSec,
       });
     } catch (err) {

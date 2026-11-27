@@ -99,10 +99,10 @@ export default function App() {
       let preferWebGPU = false;
       try {
         const nav = navigator as Navigator & {
-          gpu?: { requestAdapter: () => Promise<unknown | null> };
+          gpu?: { requestAdapter: (opts?: { powerPreference?: string }) => Promise<unknown | null> };
         };
         if (nav.gpu) {
-          preferWebGPU = Boolean(await nav.gpu.requestAdapter());
+          preferWebGPU = Boolean(await nav.gpu.requestAdapter({ powerPreference: 'high-performance' }));
         }
       } catch {
         preferWebGPU = false;
