@@ -4,12 +4,15 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "mkdir -p public/wasm && cp -f node_modules/@wllama/wllama/esm/wasm/wllama.wasm public/wasm/wllama.wasm",
     "dev": "vite",
+    "prebuild": "mkdir -p public/wasm && cp -f node_modules/@wllama/wllama/esm/wasm/wllama.wasm public/wasm/wllama.wasm",
     "build": "tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.4.0",
+    "@wllama/wllama": "^4.0.0",
     "lucide-react": "^0.475.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

@@ -33,19 +33,19 @@ jobs:
       - name: Build Vite SPA
         run: npm run build
 
-      - name: Fetch 4-bit ONNX weight-edited model from GitHub Release
+      - name: Fetch GGUF model from GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p dist/models/edu-slm-q4-b32/onnx
-          if gh release view v1.0-onnx-q4 --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release download v1.0-onnx-q4 --repo "${{ github.repository }}" --dir /tmp/onnx_release
-            mv /tmp/onnx_release/model_q4.onnx /tmp/onnx_release/model_quantized.onnx dist/models/edu-slm-q4-b32/onnx/ 2>/dev/null || mv /tmp/onnx_release/model_*.onnx dist/models/edu-slm-q4-b32/onnx/
-            mv /tmp/onnx_release/*.json /tmp/onnx_release/*.txt dist/models/edu-slm-q4-b32/ 2>/dev/null || true
-            ls -lh dist/models/edu-slm-q4-b32/ dist/models/edu-slm-q4-b32/onnx/
+          mkdir -p dist/models/edu-slm-0.5b-gguf
+          if gh release view v2.0-gguf-0.5b --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release download v2.0-gguf-0.5b --repo "${{ github.repository }}" \
+              --pattern "*.gguf" \
+              --dir dist/models/edu-slm-0.5b-gguf
+            ls -lh dist/models/edu-slm-0.5b-gguf/
             du -sh dist/
           else
-            echo "::warning::Release v1.0-onnx-q4 not found yet; deploying SPA without local ONNX bundle."
+            echo "::warning::Release v2.0-gguf-0.5b not found yet; deploying SPA without local GGUF bundle."
           fi
 
       - name: Setup Pages

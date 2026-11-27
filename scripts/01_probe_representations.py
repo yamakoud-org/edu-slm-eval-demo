@@ -39,8 +39,22 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument("--model_id", type=str, default="Qwen/Qwen2.5-1.5B-Instruct")
     parser.add_argument("--pairs_path", type=str, default="data/contrastive_pairs.json")
-    parser.add_argument("--out_pt", type=str, default="artifacts/probing_vectors.pt")
-    parser.add_argument("--out_json", type=str, default="data/probing_stats.json")
+    parser.add_argument(
+        "--out_pt",
+        "--output_vectors",
+        dest="out_pt",
+        type=str,
+        default="artifacts/probing_vectors.pt",
+        help="Tensor bundle path (alias: --output_vectors)",
+    )
+    parser.add_argument(
+        "--out_json",
+        "--output_stats",
+        dest="out_json",
+        type=str,
+        default="data/probing_stats.json",
+        help="Stats JSON path (alias: --output_stats)",
+    )
     parser.add_argument("--max_resp_tokens", type=int, default=32)
     return parser.parse_args(argv)
 

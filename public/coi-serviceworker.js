@@ -7,8 +7,15 @@ if (typeof window === 'undefined') {
   self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.cache === 'only-if-cached' && req.mode !== 'same-origin') return;
-    // Bypass Service Worker IPC streaming for large same-origin ONNX model binaries
-    if (req.url.includes('.onnx') && new URL(req.url).origin === self.location.origin) return;
+    // Bypass Service Worker IPC streaming for large same-origin model binaries
+    // (GGUF / ONNX). HTML/JS/WASM still get COOP/COEP so crossOriginIsolated stays true.
+    const reqUrl = new URL(req.url);
+    if (
+      reqUrl.origin === self.location.origin &&
+      (reqUrl.pathname.endsWith('.gguf') || reqUrl.pathname.endsWith('.onnx'))
+    ) {
+      return;
+    }
 
     event.respondWith(
       fetch(req)
